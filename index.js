@@ -2,8 +2,8 @@ const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const geolib = require('geolib');
 
-const TELEGRAM_TOKEN = '6463127140:AAHHidnr-ppSb44ifS4lw7miwVc_Y4LTWlk';
-const LTA_KEY = '4UQDy7mJS2q9eKq+E/sxAw==';
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
+const LTA_KEY = process.env.LTA_KEY;
 
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
