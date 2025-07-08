@@ -473,7 +473,8 @@ bot.on('message', async (msg) => {
       {
         headers: {
           'Authorization': `Bearer ${process.env.AI_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://t.me/lilblackyBot'
         },
       }
     );
@@ -482,6 +483,12 @@ bot.on('message', async (msg) => {
     await bot.sendMessage(chatId, aiReply);
   } catch (err) {
     console.error(err.response?.data || err.message);
-    await bot.sendMessage(chatId, '⚠️ AI error. Please try again later.');
+    if (err.response?.data?.error?.code === 429) {
+      await bot.sendMessage(chatId, '⚠️ Daily AI usage limit reached. Please wait or top up credits.');
+    } else if (err.response?.data?.error?.code === 401) {
+      await bot.sendMessage(chatId, '⚠️ Invalid API key or missing authentication for OpenRouter.');
+    } else {
+      await bot.sendMessage(chatId, '⚠️ AI error. Please try again later.');
+    }
   }
 });
