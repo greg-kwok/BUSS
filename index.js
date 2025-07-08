@@ -396,10 +396,19 @@ bot.onText(/\/princessmode/, (msg) => {
   bot.sendMessage(msg.chat.id, 'Welcome Princess!', {
     reply_markup: {
       keyboard: [
-        [{ text: "🥱 Im Bored" }, { text:"👶 Im just a baby"}]
+        [{ text: "🥱 Im Bored" }, { text:"💗 Love Bomb"}]
       ],
       resize_keyboard: true
     }
+  });
+});
+
+bot.onText(/\/fun/, (msg) => {
+  const inlineButtons = [
+    [{ text: 'Photobooth', url: 'https://greg-kwok.github.io/gregstudios/' }],
+  ];
+  bot.sendMessage(msg.chat.id, "Try out my other projects:", {
+    reply_markup: { inline_keyboard: inlineButtons }
   });
 });
 
@@ -414,12 +423,12 @@ bot.onText(/🥱 Im Bored/, (msg) => {
   });
 });
 
-bot.onText(/👶 Im just a baby/, (msg) => {
+bot.onText(/💗 Love Bomb/, (msg) => {
   for(let i = 0; i < 100; i++){
-    bot.sendMessage(msg.chat.id, "Hello baby",{
+    bot.sendMessage(msg.chat.id, "I LOVE YOU SO MUCHH!!!💗",{
       reply_markup: {
         keyboard: [
-          [{ text: "🥱 Im Bored" }, { text:"👶 Im just a baby"}]
+          [{ text: "🥱 Im Bored" }, { text:"💗 Love Bomb"}]
         ],
         resize_keyboard: true
       }
