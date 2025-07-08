@@ -415,7 +415,7 @@ bot.onText(/🥱 Im Bored/, (msg) => {
 });
 
 bot.onText(/👶 Im just a baby/, (msg) => {
-  for(i in 100){
+  for(let i = 0; i < 100; i++){
     bot.sendMessage(msg.chat.id, "Hello baby",{
       reply_markup: {
         keyboard: [
