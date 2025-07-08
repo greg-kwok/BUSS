@@ -1,6 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const geolib = require('geolib');
+require('dotenv').config();
+
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
 const LTA_KEY = process.env.LTA_KEY;
@@ -396,42 +398,90 @@ bot.onText(/\/princessmode/, (msg) => {
   bot.sendMessage(msg.chat.id, 'Welcome Princess!', {
     reply_markup: {
       keyboard: [
-        [{ text: "🥱 Im Bored" }, { text:"💗 Love Bomb"}]
+        [{ text: "😴My BF is Asleep" }, { text:"🩷 Love Bomb"}]
       ],
       resize_keyboard: true
     }
   });
 });
 
-bot.onText(/\/fun/, (msg) => {
+bot.onText(/\/myotherprojects/, (msg) => {
   const inlineButtons = [
     [{ text: 'Photobooth', url: 'https://greg-kwok.github.io/gregstudios/' }],
   ];
-  bot.sendMessage(msg.chat.id, "Try out my other projects:", {
+  bot.sendMessage(msg.chat.id, "👇Try out my other projects:", {
     reply_markup: { inline_keyboard: inlineButtons }
   });
 });
 
-bot.onText(/🥱 Im Bored/, (msg) => {
-  bot.sendMessage(msg.chat.id, "Hello bored im your personal bot at your service.",{
+bot.onText(/😴My BF is Asleep/, (msg) => {
+  aiMode = true; // Enable AI mode for Princess
+  bot.sendMessage(msg.chat.id, "Hello Princess! Your BF is off to dreamland and LOVES U VERY MUCH🩷.\n In the mean time you can talk to me, how can I assist u?\n(❗I may be slow to reply)",{
     reply_markup: {
       keyboard: [
-        [{ text: "🥱 Im Bored" }, { text:"👶 Im just a baby"}]
+        [{ text: "😴My BF is Asleep" }, { text:"🩷 Love Bomb"}]
       ],
       resize_keyboard: true
     }
   });
 });
 
-bot.onText(/💗 Love Bomb/, (msg) => {
-  for(let i = 0; i < 100; i++){
-    bot.sendMessage(msg.chat.id, "I LOVE YOU SO MUCHH!!!💗",{
+bot.onText(/🩷 Love Bomb/, (msg) => {
+  for(let i = 0; i < 25; i++){
+    bot.sendMessage(msg.chat.id, "I LOVE YOU SO MUCHH!!!🩷",{
       reply_markup: {
         keyboard: [
-          [{ text: "🥱 Im Bored" }, { text:"💗 Love Bomb"}]
+          [{ text: "😴My BF is Asleep" }, { text:"🩷 Love Bomb"}]
         ],
         resize_keyboard: true
       }
     });
+  }
+});
+
+let aiMode = false; // AI mode starts OFF
+
+bot.onText(/\/toggleai/, (msg) => {
+  aiMode = !aiMode;
+  if (aiMode) { 
+    bot.sendMessage(msg.chat.id, "✅ AI Mode is now *ON*. You can ask me anything! (❗May be slow to reply)", { parse_mode: 'Markdown' });
+  } else {
+    bot.sendMessage(msg.chat.id, "🛑 AI Mode is now *OFF*. I will not respond to AI queries.", { parse_mode: 'Markdown' });
+  }
+});
+
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+  const userText = msg.text;
+
+  // Don't process command or mention messages
+  const startsWithEmoji = /^\p{Emoji}/u.test(userText);
+  if (!userText || userText.startsWith('@') || userText.startsWith('/') || startsWithEmoji) return;
+
+
+  if (!aiMode) return; // AI Mode off — skip
+
+  bot.sendChatAction(chatId, 'typing');
+
+  try {
+    const response = await axios.post(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        model: 'deepseek/deepseek-r1-0528:free',
+        messages: [{ role: 'user', content: userText }],
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.AI_KEY}`,
+          'Content-Type': 'application/json'
+        },
+      }
+    );
+
+    const aiReply = response.data.choices[0].message.content;
+    await bot.sendMessage(chatId, aiReply);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    await bot.sendMessage(chatId, '⚠️ AI error. Please try again later.');
   }
 });
