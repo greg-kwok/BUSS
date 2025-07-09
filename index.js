@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const geolib = require('geolib');
-require('dotenv').config();
+
 
 
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -11,6 +11,9 @@ const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
 let allStops = [];
 let alertWatchlist = [];
+const sentFiveMinAlerts = new Set();
+const chatHistories = {};
+
 
 // Load all bus stops
 async function loadStops() {
@@ -89,15 +92,31 @@ function renderArrivalMessage(stopCode, stopName, services) {
 
 // Start Command
 bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, 'Welcome! 🚏\nSend \"@your Location\" or\nChoose an option below:', {
+  const chatId = msg.chat.id;
+  const chatType = msg.chat.type;
+
+  let keyboard = [];
+
+  if (chatType === 'private') {
+    // Show both options in private chat
+    keyboard = [
+      [{ text: "📋 View Alerts" }, { text: "📍 Send Location", request_location: true }]
+    ];
+  } else {
+    // Show only alerts in group chat
+    keyboard = [
+      [{ text: "📋 View Alerts" }]
+    ];
+  }
+
+  bot.sendMessage(chatId, 'Welcome! 🚏\nSend "@your Location" or\nChoose an option below:', {
     reply_markup: {
-      keyboard: [
-        [{ text: "📋 View Alerts" }, { text: "📍 Send Location", request_location: true }]
-      ],
+      keyboard: keyboard,
       resize_keyboard: true
     }
   });
 });
+
 
 // View Alerts
 bot.onText(/📋 View Alerts/, (msg) => {
@@ -368,6 +387,8 @@ setInterval(async () => {
 
         const eta = new Date(bus.NextBus.EstimatedArrival);
         const mins = Math.round((eta - now) / 60000);
+        const alertKey = `${chatId}_${stopCode}_${serviceNo}`;
+
         if (mins <= 0) {
           const typeIcon = getBusEmoji(bus.NextBus.Feature, bus.NextBus.Type);
           const loadIcon = getLoadEmoji(bus.NextBus.Load);
@@ -378,12 +399,21 @@ setInterval(async () => {
           alertWatchlist = alertWatchlist.filter(
             a => !(a.chatId === chatId && a.busStopCode === stopCode && a.serviceNo === serviceNo)
           );
-        }else if(mins == 5){
-          const typeIcon = getBusEmoji(bus.NextBus.Feature, bus.NextBus.Type);
-          const loadIcon = getLoadEmoji(bus.NextBus.Load);
-          const message = `⏰ ${typeIcon} ${serviceNo}${loadIcon} is *5 mins* away from ${stopName} (${stopCode})!`;
 
-          await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+          sentFiveMinAlerts.delete(alertKey); // Reset 5-min alert for next cycle
+
+        } else if (mins === 5) {
+          if (!sentFiveMinAlerts.has(alertKey)) {
+            const typeIcon = getBusEmoji(bus.NextBus.Feature, bus.NextBus.Type);
+            const loadIcon = getLoadEmoji(bus.NextBus.Load);
+            const message = `⏰ ${typeIcon} ${serviceNo}${loadIcon} is *5 mins* away from ${stopName} (${stopCode})!`;
+
+            await bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+            sentFiveMinAlerts.add(alertKey);
+          }
+        } else {
+          // If not near 5 mins, clear the flag so alert can re-trigger later if needed
+          sentFiveMinAlerts.delete(alertKey);
         }
       }
     } catch (err) {
@@ -391,8 +421,6 @@ setInterval(async () => {
     }
   }
 }, 30000);
-
-
 
 bot.onText(/\/princessmode/, (msg) => {
   bot.sendMessage(msg.chat.id, 'Welcome Princess!', {
@@ -444,7 +472,7 @@ let aiMode = false; // AI mode starts OFF
 bot.onText(/\/toggleai/, (msg) => {
   aiMode = !aiMode;
   if (aiMode) { 
-    bot.sendMessage(msg.chat.id, "✅ AI Mode is now *ON*. You can ask me anything! (❗May be slow to reply)", { parse_mode: 'Markdown' });
+    bot.sendMessage(msg.chat.id, "✅ AI Mode is now *ON*. You can ask me anything! \n(❗I may be slow to reply)", { parse_mode: 'Markdown' });
   } else {
     bot.sendMessage(msg.chat.id, "🛑 AI Mode is now *OFF*. I will not respond to AI queries.", { parse_mode: 'Markdown' });
   }
@@ -453,22 +481,30 @@ bot.onText(/\/toggleai/, (msg) => {
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const userText = msg.text;
-
-  // Don't process command or mention messages
-  const startsWithEmoji = /^\p{Emoji}/u.test(userText);
-  if (!userText || userText.startsWith('@') || userText.startsWith('/') || startsWithEmoji) return;
-
-
-  if (!aiMode) return; // AI Mode off — skip
+  
+  if (!aiMode || !userText || userText.startsWith('@') || userText.startsWith('/') || /^\p{Emoji}/u.test(userText)) return;
 
   bot.sendChatAction(chatId, 'typing');
+
+  // Initialize or fetch chat history
+  if (!chatHistories[chatId]) {
+    chatHistories[chatId] = [
+      { role: "system", content: "You are a helpful and friendly assistant." }
+    ];
+  }
+
+  // Add user's message to history
+  chatHistories[chatId].push({ role: "user", content: userText });
+
+  // Optional: Limit history to last 20 messages to reduce context size
+  const history = chatHistories[chatId].slice(-20);
 
   try {
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'deepseek/deepseek-r1-0528:free',
-        messages: [{ role: 'user', content: userText }],
+        model: 'deepseek/deepseek-chat:free',
+        messages: history,
       },
       {
         headers: {
@@ -480,15 +516,15 @@ bot.on('message', async (msg) => {
     );
 
     const aiReply = response.data.choices[0].message.content;
+
+    // Add AI's reply to history
+    history.push({ role: "assistant", content: aiReply });
+
+    chatHistories[chatId] = history;
+
     await bot.sendMessage(chatId, aiReply);
   } catch (err) {
     console.error(err.response?.data || err.message);
-    if (err.response?.data?.error?.code === 429) {
-      await bot.sendMessage(chatId, '⚠️ Daily AI usage limit reached. Please wait or top up credits.');
-    } else if (err.response?.data?.error?.code === 401) {
-      await bot.sendMessage(chatId, '⚠️ Invalid API key or missing authentication for OpenRouter.');
-    } else {
-      await bot.sendMessage(chatId, '⚠️ AI error. Please try again later.');
-    }
+    await bot.sendMessage(chatId, '⚠️ AI error. Please try again later.');
   }
 });
