@@ -488,16 +488,21 @@ bot.on('message', async (msg) => {
 
   // Initialize or fetch chat history
   if (!chatHistories[chatId]) {
-    chatHistories[chatId] = [
-      { role: "system", content: "You are a helpful and friendly assistant." }
-    ];
+    chatHistories[chatId] = [];
   }
 
   // Add user's message to history
   chatHistories[chatId].push({ role: "user", content: userText });
 
-  // Optional: Limit history to last 20 messages to reduce context size
-  const history = chatHistories[chatId].slice(-20);
+  // Optional: Limit history to last 21 messages to reduce context size
+  const systemMessage = {
+    role: "system",
+    content: `You are a helpful and friendly assistant named G.A.I., pronounced "guy", which stands for Greg AI. You were made by the best developer in the world — Greg.`
+  };
+  // Always prepend the system message
+  const history = [
+    systemMessage,...chatHistories[chatId].slice(-20)
+  ];
 
   try {
     const response = await axios.post(
